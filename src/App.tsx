@@ -5,21 +5,23 @@ import { ImageConverter } from "@/components/converters/ImageConverter";
 import { VideoConverter } from "@/components/converters/VideoConverter";
 import "@/styles/index.css";
 
-function getHashPage(): string {
-  return window.location.hash.replace("#/", "").replace("#", "");
+function getPathPage(): string {
+  return window.location.pathname.replace(/^\//, "");
 }
 
 export function App() {
-  const [page, setPage] = useState(getHashPage);
+  const [page, setPage] = useState(getPathPage);
 
   useEffect(() => {
-    const onHashChange = () => setPage(getHashPage());
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    const onPopState = () => setPage(getPathPage());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   const navigate = (target: string) => {
-    window.location.hash = `#/${target}`;
+    const path = target ? `/${target}` : "/";
+    history.pushState(null, "", path);
+    setPage(target);
   };
 
   const renderPage = () => {

@@ -235,31 +235,42 @@ export function useConverter(fileType?: "image" | "video") {
         }
     }, [files]);
 
+    /** Fetches a cross-origin URL and triggers a real browser download via a blob. */
+    const triggerDownload = useCallback(async (url: string, filename: string) => {
+        try {
+            const res = await fetch(url);
+            const blob = await res.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
+        } catch {
+            // Fallback: open in new tab if fetch fails
+            window.open(url, "_blank");
+        }
+    }, []);
+
     const downloadFile = useCallback(
         (id: string) => {
             const job = files.find((f) => f.id === id);
             if (!job?.downloadUrl) return;
-            const a = document.createElement("a");
-            a.href = job.downloadUrl;
-            a.download = job.outputName ?? job.originalName;
-            a.target = "_blank";
-            a.click();
+            triggerDownload(job.downloadUrl, job.outputName ?? job.originalName);
         },
-        [files]
+        [files, triggerDownload]
     );
 
     const downloadAll = useCallback(() => {
         const doneFiles = files.filter((f) => f.status === "done" && f.downloadUrl);
         doneFiles.forEach((file, i) => {
             setTimeout(() => {
-                const a = document.createElement("a");
-                a.href = file.downloadUrl!;
-                a.download = file.outputName ?? file.originalName;
-                a.target = "_blank";
-                a.click();
-            }, i * 300);
+                triggerDownload(file.downloadUrl!, file.outputName ?? file.originalName);
+            }, i * 600);
         });
-    }, [files]);
+    }, [files, triggerDownload]);
 
     const convertingCount = files.filter(
         (f) => f.status === "converting" || f.status === "uploading"

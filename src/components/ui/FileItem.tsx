@@ -162,7 +162,7 @@ export function FileItem({
                     <div
                         ref={menuRef}
                         style={{ top: menuPos.top, right: menuPos.right }}
-                        className="fixed z-50 bg-[#16162a] border border-gray-700/50 rounded-xl shadow-xl py-1 min-w-[140px]"
+                        className="fixed z-50 bg-[#16162a] border border-gray-700/50 rounded-xl shadow-xl py-1 min-w-35"
                     >
                         {file.status === "done" && (
                             <>
