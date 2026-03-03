@@ -2,8 +2,6 @@
 
 Conversor de mídia **full-stack** que roda 100% em memória — sem salvar arquivos no disco. Converte imagens para **WebP** e comprime vídeos para **H.264/MP4** diretamente no navegador.
 
----
-
 ![Bun](https://img.shields.io/badge/Bun-1.x-black?style=flat&logo=bun&logoColor=white&labelColor=111&color=fbf0df)
 ![React](https://img.shields.io/badge/React-19-20232a?style=flat&logo=react&logoColor=61DAFB&labelColor=20232a&color=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat&logo=typescript&logoColor=white&labelColor=3178C6&color=007ACC)
@@ -12,9 +10,7 @@ Conversor de mídia **full-stack** que roda 100% em memória — sem salvar arqu
 ![FFmpeg](https://img.shields.io/badge/FFmpeg-5.3-171717?style=flat&logo=ffmpeg&logoColor=green&labelColor=171717&color=3cb371)
 ![Lucide](https://img.shields.io/badge/Lucide_React-0.575-1a1a1a?style=flat&labelColor=1a1a1a&color=f56565)
 
----
-
-## ✨ Funcionalidades
+## Funcionalidades
 
 - 🖼️ **Conversão de imagens** — JPG, JPEG, PNG, GIF (animado), TIFF, BMP, AVIF → WebP (qualidade 90)
 - 🎥 **Compressão de vídeos** — MP4, MOV, MKV, AVI, WEBM → H.264/MP4 (CRF 30, max 1080p)
@@ -24,9 +20,7 @@ Conversor de mídia **full-stack** que roda 100% em memória — sem salvar arqu
 - 🗑️ Exclusão individual ou limpeza total dos jobs
 - 🧠 100% em memória — nenhum arquivo é salvo no projeto
 
----
-
-## 🛠️ Stack
+## Stack
 
 | Camada | Tecnologia |
 |--------|-----------|
@@ -37,9 +31,7 @@ Conversor de mídia **full-stack** que roda 100% em memória — sem salvar arqu
 | Conversão de vídeos | [fluent-ffmpeg](https://github.com/fluent-ffmpeg/node-fluent-ffmpeg) + ffmpeg-static |
 | Ícones | [Lucide React](https://lucide.dev) |
 
----
-
-## 🚀 Como rodar
+## Como rodar
 
 ### Pré-requisitos
 
@@ -73,9 +65,7 @@ bun run build
 
 Os arquivos são gerados na pasta `dist/`.
 
----
-
-## 📁 Estrutura do Projeto
+## Estrutura do Projeto
 
 ```
 src/
@@ -115,7 +105,7 @@ src/
 
 ---
 
-## 🔌 API
+## API
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
@@ -127,9 +117,7 @@ src/
 | `DELETE` | `/api/delete/:id` | Remove o job e libera a memória |
 | `POST` | `/api/clear` | Remove todos os jobs |
 
----
-
-## ⚙️ Parâmetros de Conversão
+## Parâmetros de Conversão
 
 ### Imagens (Sharp)
 - Formato de saída: **WebP**
