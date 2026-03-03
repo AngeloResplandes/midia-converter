@@ -58,7 +58,7 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
                             </span>
                         </h1>
 
-                        <p className="text-white/60 text-lg max-w-md mb-10 leading-relaxed">
+                        <p className="text-white/60 text-lg max-w-md mb-6 lg:mb-10 leading-relaxed">
                             Suporta <strong className="text-white/80">JPG / PNG / GIF → WebP</strong> e{" "}
                             <strong className="text-white/80">MP4 / MOV / MKV / AVI / WEBM → H.264</strong> comprimido.
                             Máximo de 30 arquivos por vez.
@@ -93,10 +93,10 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
                             onClick={() => onNavigate("image")}
                             className="w-full group cursor-pointer"
                         >
-                            <div className="relative p-6 rounded-2xl border border-purple-500/20 bg-linear-to-br from-purple-900/30 to-purple-800/10 hover:from-purple-900/50 hover:to-purple-700/20 hover:border-purple-500/40 transition-all duration-500 hover:shadow-2xl hover:shadow-purple-500/10 hover:-translate-y-1">
-                                <div className="flex items-start gap-5">
-                                    <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-purple-500 to-purple-700 flex items-center justify-center shrink-0 shadow-lg shadow-purple-500/30 group-hover:shadow-purple-500/50 transition-shadow">
-                                        <FileImage className="w-7 h-7 text-white" />
+                            <div className="relative p-4 sm:p-6 rounded-2xl border border-purple-500/20 bg-linear-to-br from-purple-900/30 to-purple-800/10 hover:from-purple-900/50 hover:to-purple-700/20 hover:border-purple-500/40 transition-all duration-500 hover:shadow-2xl hover:shadow-purple-500/10 hover:-translate-y-1">
+                                <div className="flex items-start gap-3 sm:gap-5">
+                                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-linear-to-br from-purple-500 to-purple-700 flex items-center justify-center shrink-0 shadow-lg shadow-purple-500/30 group-hover:shadow-purple-500/50 transition-shadow">
+                                        <FileImage className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                                     </div>
                                     <div className="flex-1 text-left">
                                         <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
@@ -126,10 +126,10 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
                             onClick={() => onNavigate("video")}
                             className="w-full group cursor-pointer"
                         >
-                            <div className="relative p-6 rounded-2xl border border-indigo-500/20 bg-linear-to-br from-indigo-900/30 to-indigo-800/10 hover:from-indigo-900/50 hover:to-indigo-700/20 hover:border-indigo-500/40 transition-all duration-500 hover:shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-1">
-                                <div className="flex items-start gap-5">
-                                    <div className="w-14 h-14 rounded-2xl bg-linear-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/30 group-hover:shadow-indigo-500/50 transition-shadow">
-                                        <FileVideo className="w-7 h-7 text-white" />
+                            <div className="relative p-4 sm:p-6 rounded-2xl border border-indigo-500/20 bg-linear-to-br from-indigo-900/30 to-indigo-800/10 hover:from-indigo-900/50 hover:to-indigo-700/20 hover:border-indigo-500/40 transition-all duration-500 hover:shadow-2xl hover:shadow-indigo-500/10 hover:-translate-y-1">
+                                <div className="flex items-start gap-3 sm:gap-5">
+                                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-linear-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/30 group-hover:shadow-indigo-500/50 transition-shadow">
+                                        <FileVideo className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
                                     </div>
                                     <div className="flex-1 text-left">
                                         <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">

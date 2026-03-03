@@ -89,11 +89,11 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
     const es = emptyState[color];
 
     return (
-        <div className="h-screen bg-[#0a0a1a] flex flex-col overflow-hidden pt-20">
-            <div className="flex flex-col flex-1 min-h-0 max-w-6xl mx-auto w-full px-6 py-6">
+        <div className="min-h-screen lg:h-screen bg-[#0a0a1a] flex flex-col lg:overflow-hidden pt-16 lg:pt-20">
+            <div className="flex flex-col flex-1 min-h-0 max-w-6xl mx-auto w-full px-4 sm:px-6 py-4 lg:py-6">
 
                 {/* Header */}
-                <div className="flex items-center justify-between mb-6 shrink-0">
+                <div className="flex items-center justify-between mb-3 lg:mb-6 shrink-0">
                     <div className="flex items-center gap-4">
                         <button
                             onClick={() => onNavigate("")}
@@ -123,7 +123,7 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
                 </div>
 
                 {/* Side-by-side layout */}
-                <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
+                <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 flex-1 lg:min-h-0">
 
                     {/* Left — Drop zone */}
                     <div
@@ -132,8 +132,8 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
                         onDragLeave={handleDragLeave}
                         onClick={() => fileInputRef.current?.click()}
                         className={`
-              lg:w-[42%] shrink-0 rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer
-              flex flex-col items-center justify-center gap-4 px-6
+              lg:w-[42%] min-h-37.5 lg:min-h-0 shrink-0 rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer
+              flex flex-col items-center justify-center gap-4 px-6 py-6 lg:py-0
               ${isDragging ? dz.dragging : dz.idle}
             `}
                     >
@@ -144,7 +144,7 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
                             <p className="text-gray-300 font-medium">
                                 {isDragging ? "Solte os arquivos aqui" : dragMessage}
                             </p>
-                            <p className="text-gray-500 text-sm mt-1">{formatHint}</p>
+                            <p className="hidden sm:block text-gray-500 text-sm mt-1">{formatHint}</p>
                         </div>
                         <input
                             ref={fileInputRef}
@@ -157,7 +157,7 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
                     </div>
 
                     {/* Right — File list or empty state */}
-                    <div className="flex-1 flex flex-col min-h-0">
+                    <div className="flex-1 flex flex-col min-h-75 lg:min-h-0">
                         {files.length > 0 ? (
                             <div className="flex flex-col h-full min-h-0 gap-3">
 
@@ -215,7 +215,7 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
                                         <Icon className={`w-10 h-10 ${es.icon}`} />
                                     </div>
                                     <p className="text-gray-500 text-sm">{emptyMessage}</p>
-                                    <p className="text-gray-600 text-xs mt-1">Selecione ou arraste arquivos ao lado</p>
+                                    <p className="text-gray-600 text-xs mt-1">Selecione ou arraste arquivos</p>
                                 </div>
                             </div>
                         )}

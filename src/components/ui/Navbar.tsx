@@ -3,8 +3,8 @@ import type { NavbarProps } from "@/types/components";
 
 export function Navbar({ currentPage, onNavigate }: NavbarProps) {
     return (
-        <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-4">
-            <div className="max-w-7xl mx-auto flex items-center justify-between backdrop-blur-xl bg-[#0a0a1a]/70 border border-white/10 rounded-2xl px-6 py-3 shadow-2xl shadow-purple-900/10">
+        <nav className="fixed top-0 left-0 right-0 z-50 px-3 sm:px-6 py-3 sm:py-4">
+            <div className="max-w-7xl mx-auto flex items-center justify-between backdrop-blur-xl bg-[#0a0a1a]/70 border border-white/10 rounded-2xl px-3 sm:px-6 py-2.5 sm:py-3 shadow-2xl shadow-purple-900/10">
                 {/* Logo */}
                 <button
                     onClick={() => onNavigate("")}

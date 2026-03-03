@@ -152,7 +152,7 @@ export function FileItem({
                 <button
                     ref={triggerRef}
                     onClick={handleToggleMenu}
-                    className="p-1.5 rounded-lg hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                    className="p-1.5 rounded-lg hover:bg-white/10 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 cursor-pointer"
                 >
                     <MoreHorizontal className="w-4 h-4 text-gray-400" />
                 </button>
