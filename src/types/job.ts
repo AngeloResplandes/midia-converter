@@ -29,5 +29,9 @@ export interface FileJob {
     inputSize: number;
     outputSize?: number;
     outputName?: string;
+    /** Direct Cloudinary transformation URL for download (with fl_attachment). */
+    downloadUrl?: string;
+    /** Direct Cloudinary transformation URL for inline preview. */
+    previewUrl?: string;
     error?: string;
 }

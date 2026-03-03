@@ -131,7 +131,7 @@ export function FileItem({
                     {file.status === "error" && (
                         <span className="text-xs text-red-400 truncate">{file.error}</span>
                     )}
-                    {file.status === "converting" && (
+                    {(file.status === "converting" || file.status === "uploading") && file.progress > 0 && (
                         <span className="text-xs text-purple-400">
                             {file.progress}%
                         </span>
@@ -166,13 +166,15 @@ export function FileItem({
                     >
                         {file.status === "done" && (
                             <>
-                                <button
-                                    onClick={() => { window.open(`/api/preview/${file.id}`, "_blank"); setShowMenu(false); }}
-                                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-300 hover:bg-indigo-500/20 hover:text-white transition-colors cursor-pointer"
-                                >
-                                    <Eye className="w-3.5 h-3.5" />
-                                    Visualizar
-                                </button>
+                                {file.previewUrl && (
+                                    <button
+                                        onClick={() => { window.open(file.previewUrl, "_blank"); setShowMenu(false); }}
+                                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-300 hover:bg-indigo-500/20 hover:text-white transition-colors cursor-pointer"
+                                    >
+                                        <Eye className="w-3.5 h-3.5" />
+                                        Visualizar
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => { onDownload(file.id); setShowMenu(false); }}
                                     className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-300 hover:bg-purple-500/20 hover:text-white transition-colors cursor-pointer"
