@@ -33,7 +33,7 @@ async function handleDownload(req: Request, method: "GET" | "HEAD"): Promise<Res
         const contentRange = rangeRes.headers.get("content-range"); // e.g. "bytes 0-1/12345678"
         if (contentRange) {
           const match = contentRange.match(/\/(\d+)$/);
-          if (match) contentLength = match[1];
+          if (match) contentLength = match[1] ?? null;
         }
         // Consume the tiny body to close the connection cleanly
         await rangeRes.body?.cancel();
@@ -77,7 +77,7 @@ async function getFileSize(url: string): Promise<number | null> {
   await rangeRes.body?.cancel();
   if (contentRange) {
     const match = contentRange.match(/\/(\d+)$/);
-    if (match) return parseInt(match[1], 10);
+    if (match) return parseInt(match[1]!, 10);
   }
 
   // 3. Full GET (triggers lazy transformation and counts bytes)
@@ -99,6 +99,34 @@ const server = serve({
           cloudName: process.env.CLOUDINARY_CLOUD_NAME ?? "",
           uploadPreset: process.env.CLOUDINARY_UPLOAD_PRESET ?? "",
         });
+      },
+    },
+
+    // ── Sign-upload — issues a signed upload credential (no 100 MB limit) ──
+    "/api/sign-upload": {
+      async GET(req) {
+        const url = new URL(req.url);
+        const publicId = url.searchParams.get("publicId");
+        const resourceType = url.searchParams.get("resourceType") ?? "auto";
+
+        if (!publicId) return Response.json({ error: "publicId obrigatório" }, { status: 400 });
+
+        const apiKey = process.env.CLOUDINARY_API_KEY;
+        const apiSecret = process.env.CLOUDINARY_API_SECRET;
+        const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+
+        if (!apiKey || !apiSecret || !cloudName) {
+          return Response.json({ error: "Cloudinary API Key/Secret não configurados" }, { status: 500 });
+        }
+
+        const timestamp = Math.round(Date.now() / 1000);
+        const params: Record<string, string | number> = { public_id: publicId, timestamp };
+
+        // Sign using cloudinary SDK helper
+        const { cloudinary } = await import("./server/cloudinary");
+        const signature = cloudinary.utils.api_sign_request(params, apiSecret);
+
+        return Response.json({ signature, timestamp, apiKey, cloudName, resourceType });
       },
     },
 
@@ -173,7 +201,7 @@ const server = serve({
         }
 
         const zip = zipSync(zipEntries, { level: 0 });
-        return new Response(zip, {
+        return new Response(zip.buffer as ArrayBuffer, {
           headers: {
             "Content-Type": "application/zip",
             "Content-Disposition": `attachment; filename="convertidos.zip"`,

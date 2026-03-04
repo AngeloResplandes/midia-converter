@@ -145,6 +145,11 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
                                 {isDragging ? "Solte os arquivos aqui" : dragMessage}
                             </p>
                             <p className="hidden sm:block text-gray-500 text-sm mt-1">{formatHint}</p>
+                            {type === "video" && (
+                                <p className="text-yellow-500/70 text-xs mt-2 font-medium">
+                                    Tamanho máximo: 100 MB por arquivo
+                                </p>
+                            )}
                         </div>
                         <input
                             ref={fileInputRef}

@@ -3,7 +3,13 @@ import type { FileJob } from "@/types/job";
 
 export type { FileJob };
 
-// ─── Cloudinary helpers ───────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const CHUNK_SIZE = 50 * 1024 * 1024;       // 50 MB per chunk
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024;  // 100 MB unsigned upload limit
+const CHUNK_TIMEOUT = 300_000;             // 5 min per chunk
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CloudinaryConfig {
     cloudName: string;
@@ -18,336 +24,332 @@ interface CloudinaryUploadResult {
     error?: { message: string };
 }
 
-/**
- * Builds a same-origin proxy URL for download.
- * The server fetches Cloudinary server-side and streams the file back,
- * avoiding any CORS restriction in the browser.
- */
-function buildDownloadUrl(
-    publicId: string,
-    resourceType: "image" | "video",
-    outputName: string
-): string {
-    const params = new URLSearchParams({
-        publicId,
-        type: resourceType,
-        filename: outputName,
-    });
+type ResourceType = "image" | "video";
+
+// ─── URL builders ─────────────────────────────────────────────────────────────
+
+function buildDownloadUrl(publicId: string, resourceType: ResourceType, outputName: string): string {
+    const params = new URLSearchParams({ publicId, type: resourceType, filename: outputName });
     return `/api/download?${params.toString()}`;
 }
 
+function buildPreviewUrl(cloudName: string, publicId: string, resourceType: ResourceType): string {
+    return resourceType === "image"
+        ? `https://res.cloudinary.com/${cloudName}/image/upload/f_webp,q_90/${publicId}`
+        : `https://res.cloudinary.com/${cloudName}/video/upload/vc_h264,q_auto:low,w_1920,h_1080,c_limit/${publicId}.mp4`;
+}
+
+function buildOutputName(originalName: string, type: ResourceType): string {
+    const base = originalName.substring(0, originalName.lastIndexOf(".")) || originalName;
+    return type === "image" ? `${base}.webp` : `${base}_compressed.mp4`;
+}
+
+// ─── Cloudinary upload (chunked) ──────────────────────────────────────────────
+
 /**
- * Uploads a file directly to Cloudinary using XHR so progress can be tracked.
+ * Sends a single chunk via XHR.
+ * Files ≤ CHUNK_SIZE use a plain upload (no extra headers).
+ * Larger files use Content-Range + X-Unique-Upload-Id for resumable chunking.
  */
-function uploadToCloudinary(
+function sendChunk(
+    chunk: Blob,
+    start: number,
+    total: number,
+    formDataBase: FormData,
+    uploadUrl: string,
+    uniqueUploadId: string,
+    onProgress: (loaded: number) => void
+): Promise<CloudinaryUploadResult> {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.timeout = CHUNK_TIMEOUT;
+
+        const fd = new FormData();
+        for (const [key, value] of formDataBase.entries()) fd.append(key, value);
+        fd.append("file", chunk);
+
+        xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded); };
+
+        xhr.onload = () => {
+            try {
+                const data = JSON.parse(xhr.responseText) as CloudinaryUploadResult;
+                if (xhr.status === 200 || xhr.status === 308) {
+                    resolve(data);
+                } else {
+                    const msg = data.error?.message ?? `Cloudinary ${xhr.status}`;
+                    console.error("[upload] chunk rejeitado:", msg);
+                    reject(new Error(msg));
+                }
+            } catch {
+                reject(new Error("Resposta inválida do Cloudinary"));
+            }
+        };
+
+        xhr.onerror = () => reject(new Error(`Erro de rede no upload (bytes ${start}–${start + chunk.size - 1})`));
+        xhr.ontimeout = () => reject(new Error("Tempo limite excedido durante o upload"));
+        xhr.onabort = () => reject(new Error("Upload cancelado"));
+
+        xhr.open("POST", uploadUrl);
+
+        if (total > CHUNK_SIZE) {
+            xhr.setRequestHeader("X-Unique-Upload-Id", uniqueUploadId);
+            xhr.setRequestHeader("Content-Range", `bytes ${start}-${start + chunk.size - 1}/${total}`);
+        }
+
+        xhr.send(fd);
+    });
+}
+
+/**
+ * Uploads a file to Cloudinary using the unsigned preset.
+ * Automatically splits files larger than CHUNK_SIZE into sequential chunks.
+ */
+async function uploadToCloudinary(
     file: File,
     cloudName: string,
     uploadPreset: string,
     publicId: string,
     onProgress: (pct: number) => void
 ): Promise<CloudinaryUploadResult> {
-    return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("upload_preset", uploadPreset);
-        formData.append("public_id", publicId);
+    if (!cloudName) throw new Error("cloudName ausente — verifique as variáveis de ambiente");
 
-        xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-                // Cap at 95 % — last 5 % represents Cloudinary-side processing
-                onProgress(Math.min(Math.round((e.loaded / e.total) * 95), 95));
-            }
-        };
+    const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`;
+    const uploadId = crypto.randomUUID();
+    const totalSize = file.size;
+    const chunkCount = Math.ceil(totalSize / CHUNK_SIZE);
+    const bytesPerChunk = new Array<number>(chunkCount).fill(0);
 
-        xhr.onload = () => {
-            try {
-                const data = JSON.parse(xhr.responseText) as CloudinaryUploadResult;
-                if (xhr.status === 200) resolve(data);
-                else reject(new Error(data.error?.message ?? `Erro no upload (${xhr.status})`));
-            } catch {
-                reject(new Error("Resposta inválida do Cloudinary"));
-            }
-        };
+    const fd = new FormData();
+    fd.append("upload_preset", uploadPreset);
+    fd.append("public_id", publicId);
 
-        xhr.onerror = () => reject(new Error("Erro de rede durante o upload"));
+    let lastResult!: CloudinaryUploadResult;
 
-        xhr.open("POST", `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`);
-        xhr.send(formData);
-    });
+    for (let i = 0; i < chunkCount; i++) {
+        const start = i * CHUNK_SIZE;
+        const chunk = file.slice(start, start + CHUNK_SIZE);
+
+        lastResult = await sendChunk(chunk, start, totalSize, fd, uploadUrl, uploadId, (loaded) => {
+            bytesPerChunk[i] = loaded;
+            const totalLoaded = bytesPerChunk.reduce((a, b) => a + b, 0);
+            onProgress(Math.min(Math.round((totalLoaded / totalSize) * 95), 95));
+        });
+    }
+
+    return lastResult;
+}
+
+// ─── API helpers ──────────────────────────────────────────────────────────────
+
+async function fetchConfig(): Promise<CloudinaryConfig> {
+    const res = await fetch("/api/config");
+    if (!res.ok) throw new Error("Não foi possível obter configuração do servidor");
+    const cfg = (await res.json()) as CloudinaryConfig;
+    if (!cfg.cloudName || !cfg.uploadPreset) throw new Error("Cloudinary não configurado no servidor");
+    return cfg;
+}
+
+async function fetchOutputSize(publicId: string, resourceType: ResourceType): Promise<number | undefined> {
+    try {
+        const params = new URLSearchParams({ publicId, type: resourceType });
+        const res = await fetch(`/api/filesize?${params.toString()}`);
+        if (!res.ok) return undefined;
+        const { bytes } = (await res.json()) as { bytes?: number };
+        return bytes ?? undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+function triggerBlobDownload(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement("a"), { href: url, download: filename });
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-export function useConverter(fileType?: "image" | "video") {
+export function useConverter(fileType?: ResourceType) {
     const [files, setFiles] = useState<FileJob[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const configRef = useRef<CloudinaryConfig | null>(null);
 
-    /** Fetches /api/config once and caches the result. */
+    // ── Config (cached) ──────────────────────────────────────────────────────
+
     const getConfig = useCallback(async (): Promise<CloudinaryConfig> => {
-        if (configRef.current) return configRef.current;
-        const res = await fetch("/api/config");
-        if (!res.ok) throw new Error("Não foi possível obter configuração do servidor");
-        const cfg = (await res.json()) as CloudinaryConfig;
-        if (!cfg.cloudName || !cfg.uploadPreset) {
-            throw new Error("Cloudinary não configurado no servidor");
-        }
-        configRef.current = cfg;
-        return cfg;
+        if (!configRef.current) configRef.current = await fetchConfig();
+        return configRef.current;
     }, []);
 
-    const uploadFiles = useCallback(
-        async (fileList: FileList | File[]) => {
-            setIsUploading(true);
+    // ── File state helpers ──────────────────────────────────────────────────
 
-            // Collect valid files first
-            const fileArray = Array.from(fileList).filter((file) => {
-                const isImage = file.type.startsWith("image/");
-                const isVideo = file.type.startsWith("video/");
-                const type = isImage ? "image" : isVideo ? "video" : null;
-                if (!type) return false;
-                if (fileType && type !== fileType) return false;
-                return true;
-            });
+    const updateFile = useCallback((id: string, patch: Partial<FileJob>) => {
+        setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
+    }, []);
 
-            if (fileArray.length === 0) {
-                setIsUploading(false);
-                return;
+    // ── Upload ────────────────────────────────────────────────────────────────
+
+    const uploadFiles = useCallback(async (fileList: FileList | File[]) => {
+        setIsUploading(true);
+
+        // Partition into valid and oversized
+        const oversized: { name: string; size: number }[] = [];
+        const valid = Array.from(fileList).filter((file) => {
+            const isImage = file.type.startsWith("image/");
+            const isVideo = file.type.startsWith("video/");
+            const type: ResourceType | null = isImage ? "image" : isVideo ? "video" : null;
+            if (!type || (fileType && type !== fileType)) return false;
+            if (type === "video" && file.size > MAX_VIDEO_SIZE) {
+                oversized.push({ name: file.name, size: file.size });
+                return false;
             }
+            return true;
+        });
 
-            // Add all files to the list immediately so the UI shows them right away
-            const entries = fileArray.map((file) => {
-                const isImage = file.type.startsWith("image/");
-                return {
-                    id: crypto.randomUUID(),
-                    file,
-                    type: (isImage ? "image" : "video") as "image" | "video",
-                };
-            });
-
+        // Show oversized files as errors immediately
+        if (oversized.length > 0) {
             setFiles((prev) => [
                 ...prev,
-                ...entries.map(({ id, file, type }) => ({
-                    id,
-                    originalName: file.name,
-                    type,
-                    status: "uploading" as const,
+                ...oversized.map(({ name, size }) => ({
+                    id: crypto.randomUUID(),
+                    originalName: name,
+                    type: "video" as const,
+                    status: "error" as const,
                     progress: 0,
-                    inputSize: file.size,
+                    inputSize: size,
+                    error: "Arquivo muito grande. O limite para vídeos é 100 MB.",
                 })),
             ]);
+        }
 
-            // Fetch config (after files are already visible in the list)
-            let config: CloudinaryConfig;
-            try {
-                config = await getConfig();
-            } catch (err) {
-                // Mark all freshly added entries as error
-                const ids = entries.map((e) => e.id as string);
-                setFiles((prev) =>
-                    prev.map((f) =>
-                        ids.includes(f.id)
-                            ? { ...f, status: "error", error: "Cloudinary não configurado" }
-                            : f
-                    )
-                );
-                console.error("Config error:", err);
-                setIsUploading(false);
-                return;
-            }
-
-            await Promise.all(
-                entries.map(async ({ id, file, type }) => {
-                    try {
-                        const result = await uploadToCloudinary(
-                            file,
-                            config.cloudName,
-                            config.uploadPreset,
-                            id,
-                            (pct) => {
-                                setFiles((prev) =>
-                                    prev.map((f) =>
-                                        f.id === id
-                                            // At 95% the bytes are transferred; Cloudinary is now
-                                            // running the eager transformation — switch to "converting"
-                                            ? { ...f, progress: pct, status: pct >= 95 ? "converting" : "uploading" }
-                                            : f
-                                    )
-                                );
-                            }
-                        );
-
-                        const baseName =
-                            file.name.substring(0, file.name.lastIndexOf(".")) || file.name;
-                        const outputName =
-                            type === "image"
-                                ? `${baseName}.webp`
-                                : `${baseName}_compressed.mp4`;
-
-                        const resourceType =
-                            result.resource_type === "video" ? "video" : "image";
-
-                        const downloadUrl = buildDownloadUrl(
-                            result.public_id,
-                            resourceType,
-                            outputName
-                        );
-
-                        console.log("[upload] public_id:", result.public_id, "| resource_type:", result.resource_type, "| downloadUrl:", downloadUrl);
-
-                        // Fetch converted file size from the server proxy.
-                        // Images: transform is synchronous, Content-Length is reliable.
-                        // Videos: server triggers the H264 transform and returns size once available.
-                        let outputSize: number | undefined;
-                        try {
-                            const sizeParams = new URLSearchParams({ publicId: result.public_id, type: resourceType });
-                            const sizeRes = await fetch(`/api/filesize?${sizeParams.toString()}`);
-                            if (sizeRes.ok) {
-                                const { bytes } = await sizeRes.json() as { bytes?: number };
-                                if (bytes) outputSize = bytes;
-                            }
-                        } catch {
-                            // outputSize stays undefined — size row hidden
-                        }
-
-                        // Preview URL — same as download but without fl_attachment
-                        const previewUrl =
-                            resourceType === "image"
-                                ? `https://res.cloudinary.com/${config.cloudName}/image/upload/f_webp,q_90/${result.public_id}`
-                                : `https://res.cloudinary.com/${config.cloudName}/video/upload/vc_h264,q_auto:low,w_1920,h_1080,c_limit/${result.public_id}.mp4`;
-
-                        setFiles((prev) =>
-                            prev.map((f) =>
-                                f.id === id
-                                    ? { ...f, status: "done", progress: 100, outputName, outputSize, downloadUrl, previewUrl }
-                                    : f
-                            )
-                        );
-                    } catch (err) {
-                        setFiles((prev) =>
-                            prev.map((f) =>
-                                f.id === id
-                                    ? { ...f, status: "error", error: String(err) }
-                                    : f
-                            )
-                        );
-                    }
-                })
-            );
-
+        if (valid.length === 0) {
             setIsUploading(false);
-        },
-        [fileType, getConfig]
-    );
+            return;
+        }
 
-    const deleteFile = useCallback(async (id: string) => {
-        // Remove from UI immediately, then clean up on Cloudinary
+        // Create pending entries and show them in the UI right away
+        const entries = valid.map((file) => ({
+            id: crypto.randomUUID(),
+            file,
+            type: (file.type.startsWith("image/") ? "image" : "video") as ResourceType,
+        }));
+
+        setFiles((prev) => [
+            ...prev,
+            ...entries.map(({ id, file, type }) => ({
+                id,
+                originalName: file.name,
+                type,
+                status: "uploading" as const,
+                progress: 0,
+                inputSize: file.size,
+            })),
+        ]);
+
+        // Fetch config (after entries are already visible)
+        let config: CloudinaryConfig;
+        try {
+            config = await getConfig();
+        } catch (err) {
+            const ids = entries.map((e) => e.id as string);
+            setFiles((prev) =>
+                prev.map((f) =>
+                    ids.includes(f.id) ? { ...f, status: "error", error: "Cloudinary não configurado" } : f
+                )
+            );
+            console.error("[useConverter] config error:", err);
+            setIsUploading(false);
+            return;
+        }
+
+        // Upload all valid files in parallel
+        await Promise.all(
+            entries.map(async ({ id, file, type }) => {
+                try {
+                    const result = await uploadToCloudinary(
+                        file,
+                        config.cloudName,
+                        config.uploadPreset,
+                        id,
+                        (pct) => updateFile(id, {
+                            progress: pct,
+                            status: pct >= 95 ? "converting" : "uploading",
+                        })
+                    );
+
+                    const resourceType: ResourceType = result.resource_type === "video" ? "video" : "image";
+                    const outputName = buildOutputName(file.name, type);
+                    const downloadUrl = buildDownloadUrl(result.public_id, resourceType, outputName);
+                    const previewUrl = buildPreviewUrl(config.cloudName, result.public_id, resourceType);
+                    const outputSize = await fetchOutputSize(result.public_id, resourceType);
+
+                    updateFile(id, { status: "done", progress: 100, outputName, outputSize, downloadUrl, previewUrl });
+                } catch (err) {
+                    updateFile(id, { status: "error", error: String(err) });
+                }
+            })
+        );
+
+        setIsUploading(false);
+    }, [fileType, getConfig, updateFile]);
+
+    // ── Delete / clear ────────────────────────────────────────────────────────
+
+    const deleteFile = useCallback((id: string) => {
         setFiles((prev) => prev.filter((f) => f.id !== id));
         fetch(`/api/delete/${id}`, { method: "DELETE" }).catch(() => { });
     }, []);
 
-    const clearAll = useCallback(async () => {
+    const clearAll = useCallback(() => {
         const snapshot = [...files];
         setFiles([]);
-        for (const file of snapshot) {
-            fetch(`/api/delete/${file.id}`, { method: "DELETE" }).catch(() => { });
-        }
+        snapshot.forEach(({ id }) => fetch(`/api/delete/${id}`, { method: "DELETE" }).catch(() => { }));
     }, [files]);
 
-    /**
-     * Downloads a file via the same-origin /api/download proxy.
-     * Since the URL is same-origin, fetch + blob + a.download works reliably
-     * in all browsers with no CORS or popup-blocker issues.
-     */
+    // ── Downloads ─────────────────────────────────────────────────────────────
+
     const triggerDownload = useCallback((url: string, filename: string) => {
         fetch(url)
-            .then((res) => {
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return res.blob();
-            })
-            .then((blob) => {
-                const blobUrl = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = blobUrl;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
-            })
-            .catch((err) => {
-                console.error("[triggerDownload] erro:", err);
-            });
+            .then((res) => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.blob(); })
+            .then((blob) => triggerBlobDownload(blob, filename))
+            .catch((err) => console.error("[download] erro:", err));
     }, []);
 
-    const downloadFile = useCallback(
-        (id: string) => {
-            const job = files.find((f) => f.id === id);
-            if (!job?.downloadUrl) return;
-            triggerDownload(job.downloadUrl, job.outputName ?? job.originalName);
-        },
-        [files, triggerDownload]
-    );
+    const downloadFile = useCallback((id: string) => {
+        const job = files.find((f) => f.id === id);
+        if (job?.downloadUrl) triggerDownload(job.downloadUrl, job.outputName ?? job.originalName);
+    }, [files, triggerDownload]);
 
     const downloadAll = useCallback(() => {
-        const doneFiles = files.filter((f) => f.status === "done" && f.downloadUrl);
-        if (doneFiles.length === 0) return;
+        const done = files.filter((f) => f.status === "done" && f.downloadUrl);
+        if (done.length === 0) return;
 
-        // Single file — just download directly
-        if (doneFiles.length === 1) {
-            const file = doneFiles[0];
-            if (file) triggerDownload(file.downloadUrl!, file.outputName ?? file.originalName);
+        if (done.length === 1) {
+            const [file] = done;
+            triggerDownload(file!.downloadUrl!, file!.outputName ?? file!.originalName);
             return;
         }
-
-        // Multiple files — request a ZIP from the server
-        const entries = doneFiles.map((f) => ({
-            publicId: f.id,
-            type: f.type,
-            filename: f.outputName ?? f.originalName,
-        }));
 
         fetch("/api/download-zip", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ files: entries }),
+            body: JSON.stringify({
+                files: done.map((f) => ({ publicId: f.id, type: f.type, filename: f.outputName ?? f.originalName })),
+            }),
         })
-            .then((res) => {
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return res.blob();
-            })
-            .then((blob) => {
-                const blobUrl = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = blobUrl;
-                a.download = "convertidos.zip";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
-            })
-            .catch((err) => {
-                console.error("[downloadAll] erro ao gerar ZIP:", err);
-            });
+            .then((res) => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.blob(); })
+            .then((blob) => triggerBlobDownload(blob, "convertidos.zip"))
+            .catch((err) => console.error("[downloadAll] erro ao gerar ZIP:", err));
     }, [files, triggerDownload]);
 
-    const convertingCount = files.filter(
-        (f) => f.status === "converting" || f.status === "uploading"
-    ).length;
+    // ── Derived counts ────────────────────────────────────────────────────────
+
+    const convertingCount = files.filter((f) => f.status === "uploading" || f.status === "converting").length;
     const doneCount = files.filter((f) => f.status === "done").length;
     const errorCount = files.filter((f) => f.status === "error").length;
 
-    return {
-        files,
-        isUploading,
-        uploadFiles,
-        deleteFile,
-        clearAll,
-        downloadFile,
-        downloadAll,
-        convertingCount,
-        doneCount,
-        errorCount,
-    };
+    return { files, isUploading, uploadFiles, deleteFile, clearAll, downloadFile, downloadAll, convertingCount, doneCount, errorCount };
 }
