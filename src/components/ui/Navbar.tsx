@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import faviconUrl from "@/assets/favicon.svg";
 import type { NavbarProps } from "@/types/components";
 
 export function Navbar({ currentPage, onNavigate }: NavbarProps) {
@@ -10,9 +10,7 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
                     onClick={() => onNavigate("")}
                     className="flex items-center gap-2.5 group cursor-pointer"
                 >
-                    <div className="w-9 h-9 rounded-xl bg-linear-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:shadow-purple-500/50 transition-shadow">
-                        <Sparkles className="w-5 h-5 text-white" />
-                    </div>
+                    <img src={faviconUrl} alt="MídiaConv" className="w-9 h-9" />
                     <span className="text-white font-bold text-lg tracking-wide">
                         MÍDIA<span className="text-purple-400">CONV</span>
                     </span>
