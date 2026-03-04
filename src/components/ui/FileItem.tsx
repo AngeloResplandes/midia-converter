@@ -106,11 +106,18 @@ export function FileItem({
             {getFileIcon()}
 
             <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-medium text-gray-200 truncate pr-2">
-                        {file.originalName}
-                    </p>
-                    {getStatusIcon()}
+                <div className="flex items-start justify-between mb-1 gap-2">
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                        <p className="text-sm font-medium text-gray-200 truncate">
+                            {file.originalName}
+                        </p>
+                        {file.status === "done" && file.outputName && (
+                            <p className="text-xs font-medium text-green-400 truncate mt-0.5">
+                                ↳ {file.outputName}
+                            </p>
+                        )}
+                    </div>
+                    <div className="shrink-0 mt-0.5">{getStatusIcon()}</div>
                 </div>
 
                 <div className="flex items-center gap-2 mb-1.5">

@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { useConverter } from "@/hooks/useConverter";
 import { FileItem } from "@/components/ui/FileItem";
-import { Upload, Download, X, Loader2, ArrowLeft } from "lucide-react";
+import { Upload, Download, X, Loader2, ArrowLeft, Archive } from "lucide-react";
 import type { ConverterPageProps } from "@/types/components";
 
 // ─── Static color maps (must stay as literals for Tailwind to include them) ──
@@ -202,8 +202,9 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
                                         onClick={downloadAll}
                                         className={`shrink-0 w-full py-4 rounded-2xl text-white font-bold text-sm tracking-widest uppercase transition-all duration-300 flex items-center justify-center gap-2 shadow-lg cursor-pointer ${downloadBtn[color]}`}
                                     >
-                                        <Download className="w-5 h-5" />
-                                        DOWNLOAD {downloadLabel(doneCount)}
+                                        {doneCount > 1
+                                            ? <><Archive className="w-5 h-5" /> BAIXAR .ZIP {downloadLabel(doneCount)}</>
+                                            : <><Download className="w-5 h-5" /> DOWNLOAD {downloadLabel(doneCount)}</>}
                                     </button>
                                 )}
                             </div>

@@ -16,6 +16,7 @@
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.9.0",
     "clsx": "^2.1.1",
+    "fflate": "^0.8.2",
     "lucide-react": "^0.575.0",
     "react": "^19",
     "react-dom": "^19",

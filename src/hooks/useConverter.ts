@@ -19,23 +19,21 @@ interface CloudinaryUploadResult {
 }
 
 /**
- * Builds a Cloudinary transformation URL for download.
- * Images → WebP (quality 90).
- * Videos → H.264/MP4, capped at 1920×1080.
+ * Builds a same-origin proxy URL for download.
+ * The server fetches Cloudinary server-side and streams the file back,
+ * avoiding any CORS restriction in the browser.
  */
 function buildDownloadUrl(
-    cloudName: string,
     publicId: string,
     resourceType: "image" | "video",
     outputName: string
 ): string {
-    // fl_attachment requires an ASCII-safe filename
-    const safeFilename = outputName.replace(/[^a-zA-Z0-9._-]/g, "_");
-
-    if (resourceType === "image") {
-        return `https://res.cloudinary.com/${cloudName}/image/upload/f_webp,q_90,fl_attachment:${safeFilename}/${publicId}`;
-    }
-    return `https://res.cloudinary.com/${cloudName}/video/upload/vc_h264,q_auto:low,w_1920,h_1080,c_limit,fl_attachment:${safeFilename}/${publicId}.mp4`;
+    const params = new URLSearchParams({
+        publicId,
+        type: resourceType,
+        filename: outputName,
+    });
+    return `/api/download?${params.toString()}`;
 }
 
 /**
@@ -146,7 +144,7 @@ export function useConverter(fileType?: "image" | "video") {
                 config = await getConfig();
             } catch (err) {
                 // Mark all freshly added entries as error
-                const ids = entries.map((e) => e.id);
+                const ids = entries.map((e) => e.id as string);
                 setFiles((prev) =>
                     prev.map((f) =>
                         ids.includes(f.id)
@@ -169,7 +167,13 @@ export function useConverter(fileType?: "image" | "video") {
                             id,
                             (pct) => {
                                 setFiles((prev) =>
-                                    prev.map((f) => (f.id === id ? { ...f, progress: pct } : f))
+                                    prev.map((f) =>
+                                        f.id === id
+                                            // At 95% the bytes are transferred; Cloudinary is now
+                                            // running the eager transformation — switch to "converting"
+                                            ? { ...f, progress: pct, status: pct >= 95 ? "converting" : "uploading" }
+                                            : f
+                                    )
                                 );
                             }
                         );
@@ -185,11 +189,27 @@ export function useConverter(fileType?: "image" | "video") {
                             result.resource_type === "video" ? "video" : "image";
 
                         const downloadUrl = buildDownloadUrl(
-                            config.cloudName,
                             result.public_id,
                             resourceType,
                             outputName
                         );
+
+                        console.log("[upload] public_id:", result.public_id, "| resource_type:", result.resource_type, "| downloadUrl:", downloadUrl);
+
+                        // Fetch converted file size from the server proxy.
+                        // Images: transform is synchronous, Content-Length is reliable.
+                        // Videos: server triggers the H264 transform and returns size once available.
+                        let outputSize: number | undefined;
+                        try {
+                            const sizeParams = new URLSearchParams({ publicId: result.public_id, type: resourceType });
+                            const sizeRes = await fetch(`/api/filesize?${sizeParams.toString()}`);
+                            if (sizeRes.ok) {
+                                const { bytes } = await sizeRes.json() as { bytes?: number };
+                                if (bytes) outputSize = bytes;
+                            }
+                        } catch {
+                            // outputSize stays undefined — size row hidden
+                        }
 
                         // Preview URL — same as download but without fl_attachment
                         const previewUrl =
@@ -200,7 +220,7 @@ export function useConverter(fileType?: "image" | "video") {
                         setFiles((prev) =>
                             prev.map((f) =>
                                 f.id === id
-                                    ? { ...f, status: "done", progress: 100, outputName, downloadUrl, previewUrl }
+                                    ? { ...f, status: "done", progress: 100, outputName, outputSize, downloadUrl, previewUrl }
                                     : f
                             )
                         );
@@ -235,23 +255,30 @@ export function useConverter(fileType?: "image" | "video") {
         }
     }, [files]);
 
-    /** Fetches a cross-origin URL and triggers a real browser download via a blob. */
-    const triggerDownload = useCallback(async (url: string, filename: string) => {
-        try {
-            const res = await fetch(url);
-            const blob = await res.blob();
-            const blobUrl = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = blobUrl;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
-        } catch {
-            // Fallback: open in new tab if fetch fails
-            window.open(url, "_blank");
-        }
+    /**
+     * Downloads a file via the same-origin /api/download proxy.
+     * Since the URL is same-origin, fetch + blob + a.download works reliably
+     * in all browsers with no CORS or popup-blocker issues.
+     */
+    const triggerDownload = useCallback((url: string, filename: string) => {
+        fetch(url)
+            .then((res) => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.blob();
+            })
+            .then((blob) => {
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = blobUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
+            })
+            .catch((err) => {
+                console.error("[triggerDownload] erro:", err);
+            });
     }, []);
 
     const downloadFile = useCallback(
@@ -265,11 +292,44 @@ export function useConverter(fileType?: "image" | "video") {
 
     const downloadAll = useCallback(() => {
         const doneFiles = files.filter((f) => f.status === "done" && f.downloadUrl);
-        doneFiles.forEach((file, i) => {
-            setTimeout(() => {
-                triggerDownload(file.downloadUrl!, file.outputName ?? file.originalName);
-            }, i * 600);
-        });
+        if (doneFiles.length === 0) return;
+
+        // Single file — just download directly
+        if (doneFiles.length === 1) {
+            const file = doneFiles[0];
+            if (file) triggerDownload(file.downloadUrl!, file.outputName ?? file.originalName);
+            return;
+        }
+
+        // Multiple files — request a ZIP from the server
+        const entries = doneFiles.map((f) => ({
+            publicId: f.id,
+            type: f.type,
+            filename: f.outputName ?? f.originalName,
+        }));
+
+        fetch("/api/download-zip", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ files: entries }),
+        })
+            .then((res) => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.blob();
+            })
+            .then((blob) => {
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = blobUrl;
+                a.download = "convertidos.zip";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
+            })
+            .catch((err) => {
+                console.error("[downloadAll] erro ao gerar ZIP:", err);
+            });
     }, [files, triggerDownload]);
 
     const convertingCount = files.filter(
