@@ -1,10 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-/**
- * GET  /api/download?publicId=...&type=image|video&filename=...
- * HEAD /api/download?publicId=...&type=image|video  → returns Content-Length only
- * Proxies the Cloudinary transformation URL server-side to avoid CORS issues.
- */
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== "GET" && req.method !== "HEAD") {
         return res.status(405).json({ error: "Method not allowed" });
@@ -32,18 +28,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
         if (req.method === "HEAD") {
-            // Try HEAD first
             const headRes = await fetch(cloudinaryUrl, { method: "HEAD" });
             let contentLength = headRes.headers.get("content-length");
 
-            // Cloudinary often omits Content-Length for videos (chunked encoding).
-            // Fall back to a minimal Range request to read total size from Content-Range.
             if (!contentLength || contentLength === "0") {
                 const rangeRes = await fetch(cloudinaryUrl, { headers: { Range: "bytes=0-1" } });
-                const contentRange = rangeRes.headers.get("content-range"); // e.g. "bytes 0-1/12345678"
+                const contentRange = rangeRes.headers.get("content-range");
                 if (contentRange) {
                     const match = contentRange.match(/\/(\d+)$/);
-                    if (match) contentLength = match[1];
+                    if (match) contentLength = match[1] ?? null;
                 }
                 await rangeRes.body?.cancel();
             }

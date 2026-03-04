@@ -1,15 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-/**
- * GET /api/filesize?publicId=...&type=image|video
- * Returns { bytes: N } — the size of the Cloudinary-transformed file.
- *
- * For images: the transform is synchronous; the HEAD response has Content-Length.
- * For videos: we initiate a GET and read only the headers (aborting the body).
- *             On first access Cloudinary generates the H264 derivative; the
- *             Content-Length header is present once the derivative is ready.
- *             If unavailable, we fall back to a Range request.
- */
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
@@ -36,21 +27,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 }
 
 async function getFileSize(url: string): Promise<number | null> {
-    // 1. Try HEAD
     const headRes = await fetch(url, { method: "HEAD" });
     const cl = headRes.headers.get("content-length");
     if (cl && cl !== "0") return parseInt(cl, 10);
 
-    // 2. Try Range: bytes=0-1 → Content-Range: bytes 0-1/TOTAL
     const rangeRes = await fetch(url, { headers: { Range: "bytes=0-1" } });
-    const contentRange = rangeRes.headers.get("content-range"); // "bytes 0-1/12345"
+    const contentRange = rangeRes.headers.get("content-range");
     await rangeRes.body?.cancel();
     if (contentRange) {
         const match = contentRange.match(/\/(\d+)$/);
         if (match?.[1]) return parseInt(match[1], 10);
     }
 
-    // 3. Last resort: GET and count bytes (triggers transformation for videos)
     const getRes = await fetch(url);
     const buffer = await getRes.arrayBuffer();
     return buffer.byteLength || null;

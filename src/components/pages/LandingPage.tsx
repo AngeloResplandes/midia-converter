@@ -11,17 +11,13 @@ import type { LandingPageProps } from "@/types/components";
 export function LandingPage({ onNavigate }: LandingPageProps) {
     return (
         <div className="min-h-screen">
-            {/* Hero Section */}
             <section className="relative min-h-screen flex flex-col lg:flex-row overflow-hidden">
-                {/* Left side - Hero */}
                 <div className="relative w-full lg:w-[50%] bg-linear-to-br from-purple-700 via-purple-600 to-indigo-700 p-8 lg:p-16 flex flex-col justify-center min-h-screen">
-                    {/* Animated background shapes */}
                     <div className="absolute inset-0 overflow-hidden pointer-events-none">
                         <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-purple-500/20 blur-3xl animate-float" />
                         <div className="absolute bottom-20 -left-20 w-96 h-96 rounded-full bg-indigo-500/15 blur-3xl animate-float-delayed" />
                         <div className="absolute top-1/2 right-10 w-48 h-48 bg-yellow-400/10 rounded-3xl rotate-12 blur-2xl animate-float-slow" />
 
-                        {/* Geometric decorations */}
                         <div className="absolute top-24 right-24 w-28 h-28 border-2 border-white/10 rounded-2xl rotate-12 animate-spin-slow" />
                         <div className="absolute bottom-32 right-36 w-20 h-20 border-2 border-white/10 rounded-xl -rotate-6 animate-spin-slow-reverse" />
                         <div className="absolute top-32 left-24 w-3 h-3 bg-yellow-400 rounded-full animate-pulse-glow" />
@@ -29,13 +25,11 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
                         <div className="absolute bottom-48 left-44 w-4 h-4 bg-green-400 rounded-full animate-pulse-glow" />
                         <div className="absolute top-1/3 left-1/3 w-2 h-2 bg-blue-300 rounded-full animate-pulse-glow-delayed" />
 
-                        {/* Floating squares */}
                         <div className="absolute top-[20%] right-[15%] w-6 h-6 border border-white/20 rotate-45 animate-float" />
                         <div className="absolute bottom-[30%] left-[10%] w-4 h-4 bg-white/10 rotate-12 animate-float-delayed" />
                         <div className="absolute top-[60%] right-[30%] w-8 h-8 border border-purple-300/20 rounded-lg rotate-[-15deg] animate-float-slow" />
                     </div>
 
-                    {/* Content */}
                     <div className="relative z-10 max-w-lg">
                         <div className="flex items-center gap-2 mb-8">
                             <div className="px-4 py-1.5 bg-white/15 backdrop-blur-sm rounded-full border border-white/20 flex items-center gap-2">
@@ -64,7 +58,6 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
                             Máximo de 30 arquivos por vez.
                         </p>
 
-                        {/* Format badges */}
                         <div className="flex flex-wrap gap-3">
                             <div className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-xl border border-white/10">
                                 <Image className="w-4 h-4 text-purple-200" />
@@ -78,7 +71,6 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
                     </div>
                 </div>
 
-                {/* Right side - CTA Cards */}
                 <div className="flex-1 bg-[#0a0a1a] p-8 lg:p-16 flex flex-col justify-center">
                     <div className="max-w-lg mx-auto w-full space-y-5">
                         <h2 className="text-2xl font-bold text-white mb-2">
@@ -88,7 +80,6 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
                             Selecione abaixo para começar a converter seus arquivos
                         </p>
 
-                        {/* Image Converter Card */}
                         <button
                             onClick={() => onNavigate("image")}
                             className="w-full group cursor-pointer"
@@ -121,7 +112,6 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
                             </div>
                         </button>
 
-                        {/* Video Converter Card */}
                         <button
                             onClick={() => onNavigate("video")}
                             className="w-full group cursor-pointer"

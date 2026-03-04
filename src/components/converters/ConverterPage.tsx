@@ -3,51 +3,13 @@ import { useConverter } from "@/hooks/useConverter";
 import { FileItem } from "@/components/ui/FileItem";
 import { Upload, Download, X, Loader2, ArrowLeft, Archive } from "lucide-react";
 import type { ConverterPageProps } from "@/types/components";
-
-// ─── Static color maps (must stay as literals for Tailwind to include them) ──
-
-const dropZone = {
-    purple: {
-        dragging: "border-purple-400 bg-purple-500/10 scale-[1.02]",
-        idle: "border-gray-600/50 bg-[#12122a]/50 hover:border-purple-500/50 hover:bg-[#12122a]/80",
-        iconDragging: "bg-purple-500/30",
-        iconIdle: "bg-purple-500/10",
-        uploadDragging: "text-purple-400",
-        uploadIdle: "text-purple-500/60",
-    },
-    indigo: {
-        dragging: "border-indigo-400 bg-indigo-500/10 scale-[1.02]",
-        idle: "border-gray-600/50 bg-[#12122a]/50 hover:border-indigo-500/50 hover:bg-[#12122a]/80",
-        iconDragging: "bg-indigo-500/30",
-        iconIdle: "bg-indigo-500/10",
-        uploadDragging: "text-indigo-400",
-        uploadIdle: "text-indigo-500/60",
-    },
-};
-
-const statusColors = {
-    purple: { text: "text-purple-400", dot: "bg-purple-400" },
-    indigo: { text: "text-indigo-400", dot: "bg-indigo-400" },
-};
-
-const headerIcon = {
-    purple: "bg-linear-to-br from-purple-500 to-purple-700 shadow-purple-500/20",
-    indigo: "bg-linear-to-br from-indigo-500 to-indigo-700 shadow-indigo-500/20",
-};
-
-const downloadBtn = {
-    purple:
-        "bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-500/20 hover:shadow-purple-500/40",
-    indigo:
-        "bg-linear-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-indigo-500/20 hover:shadow-indigo-500/40",
-};
-
-const emptyState = {
-    purple: { bg: "bg-purple-500/10", icon: "text-purple-500/40" },
-    indigo: { bg: "bg-indigo-500/10", icon: "text-indigo-500/40" },
-};
-
-// ─── Shared converter page layout ─────────────────────────────────────────────
+import {
+    dropZone,
+    statusColors,
+    headerIcon,
+    downloadBtn,
+    emptyState
+} from "@/services/converterPage";
 
 export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
     const { type, title, subtitle, icon: Icon, color, accept, formatHint,
@@ -92,7 +54,6 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
         <div className="min-h-screen lg:h-screen bg-[#0a0a1a] flex flex-col lg:overflow-hidden pt-16 lg:pt-20">
             <div className="flex flex-col flex-1 min-h-0 max-w-6xl mx-auto w-full px-4 sm:px-6 py-4 lg:py-6">
 
-                {/* Header */}
                 <div className="flex items-center justify-between mb-3 lg:mb-6 shrink-0">
                     <div className="flex items-center gap-4">
                         <button
@@ -122,10 +83,7 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
                     )}
                 </div>
 
-                {/* Side-by-side layout */}
                 <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 flex-1 lg:min-h-0">
-
-                    {/* Left — Drop zone */}
                     <div
                         onDrop={handleDrop}
                         onDragOver={handleDragOver}
@@ -161,12 +119,10 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
                         />
                     </div>
 
-                    {/* Right — File list or empty state */}
                     <div className="flex-1 flex flex-col min-h-75 lg:min-h-0">
                         {files.length > 0 ? (
                             <div className="flex flex-col h-full min-h-0 gap-3">
 
-                                {/* Status bar */}
                                 <div className="flex items-center justify-between px-1 shrink-0">
                                     <div className="flex items-center gap-2">
                                         {convertingCount > 0 && (
@@ -189,7 +145,6 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
                                     </span>
                                 </div>
 
-                                {/* Scrollable file list */}
                                 <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar min-h-0">
                                     {files.map((file) => (
                                         <FileItem
@@ -201,7 +156,6 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
                                     ))}
                                 </div>
 
-                                {/* Download all */}
                                 {doneCount > 0 && (
                                     <button
                                         onClick={downloadAll}
@@ -214,7 +168,6 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
                                 )}
                             </div>
                         ) : (
-                            /* Empty state */
                             <div className="flex-1 flex items-center justify-center rounded-2xl border border-dashed border-gray-700/40 bg-[#12122a]/20">
                                 <div className="text-center">
                                     <div className={`w-20 h-20 rounded-3xl ${es.bg} flex items-center justify-center mx-auto mb-4`}>

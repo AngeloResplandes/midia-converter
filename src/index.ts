@@ -3,7 +3,6 @@ import index from "./index.html";
 import { destroyResource } from "./server/cloudinary";
 import { zipSync } from "fflate";
 
-// ─── Download proxy helper ─────────────────────────────────────────────────
 async function handleDownload(req: Request, method: "GET" | "HEAD"): Promise<Response> {
   const url = new URL(req.url);
   const publicId = url.searchParams.get("publicId");
@@ -22,20 +21,16 @@ async function handleDownload(req: Request, method: "GET" | "HEAD"): Promise<Res
 
   try {
     if (method === "HEAD") {
-      // Try HEAD first
       const headRes = await fetch(cloudinaryUrl, { method: "HEAD" });
       let contentLength = headRes.headers.get("content-length");
 
-      // Cloudinary often omits Content-Length for videos (chunked encoding).
-      // Fall back to a minimal Range request to read total size from Content-Range.
       if (!contentLength || contentLength === "0") {
         const rangeRes = await fetch(cloudinaryUrl, { headers: { Range: "bytes=0-1" } });
-        const contentRange = rangeRes.headers.get("content-range"); // e.g. "bytes 0-1/12345678"
+        const contentRange = rangeRes.headers.get("content-range");
         if (contentRange) {
           const match = contentRange.match(/\/(\d+)$/);
           if (match) contentLength = match[1] ?? null;
         }
-        // Consume the tiny body to close the connection cleanly
         await rangeRes.body?.cancel();
       }
 
@@ -64,14 +59,11 @@ async function handleDownload(req: Request, method: "GET" | "HEAD"): Promise<Res
   }
 }
 
-// ─── File size helper ──────────────────────────────────────────────────────
 async function getFileSize(url: string): Promise<number | null> {
-  // 1. HEAD
   const headRes = await fetch(url, { method: "HEAD" });
   const cl = headRes.headers.get("content-length");
   if (cl && cl !== "0") return parseInt(cl, 10);
 
-  // 2. Range: bytes=0-1 → Content-Range: bytes 0-1/TOTAL
   const rangeRes = await fetch(url, { headers: { Range: "bytes=0-1" } });
   const contentRange = rangeRes.headers.get("content-range");
   await rangeRes.body?.cancel();
@@ -80,19 +72,14 @@ async function getFileSize(url: string): Promise<number | null> {
     if (match) return parseInt(match[1]!, 10);
   }
 
-  // 3. Full GET (triggers lazy transformation and counts bytes)
   const getRes = await fetch(url);
   const buffer = await getRes.arrayBuffer();
   return buffer.byteLength || null;
 }
 
-// ─── Server ────────────────────────────────────────────────────────────────
 const server = serve({
   routes: {
-    // Serve the SPA for all non-API requests
     "/*": index,
-
-    // ── Config — returns public Cloudinary settings to the frontend ─────────
     "/api/config": {
       GET() {
         return Response.json({
@@ -102,7 +89,6 @@ const server = serve({
       },
     },
 
-    // ── Sign-upload — issues a signed upload credential (no 100 MB limit) ──
     "/api/sign-upload": {
       async GET(req) {
         const url = new URL(req.url);
@@ -122,7 +108,6 @@ const server = serve({
         const timestamp = Math.round(Date.now() / 1000);
         const params: Record<string, string | number> = { public_id: publicId, timestamp };
 
-        // Sign using cloudinary SDK helper
         const { cloudinary } = await import("./server/cloudinary");
         const signature = cloudinary.utils.api_sign_request(params, apiSecret);
 
@@ -130,7 +115,6 @@ const server = serve({
       },
     },
 
-    // ── Filesize — returns the byte size of the Cloudinary-transformed file ──
     "/api/filesize": {
       async GET(req) {
         const url = new URL(req.url);
@@ -155,7 +139,6 @@ const server = serve({
       },
     },
 
-    // ── Download-zip — packages multiple converted files into a ZIP ────────
     "/api/download-zip": {
       async POST(req) {
         const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
@@ -212,7 +195,6 @@ const server = serve({
       },
     },
 
-    // ── Download — proxies the Cloudinary file to avoid CORS in the browser ──
     "/api/download": {
       async GET(req) {
         return handleDownload(req, "GET");
@@ -222,7 +204,6 @@ const server = serve({
       },
     },
 
-    // ── Delete — removes a resource from Cloudinary by public_id ────────────
     "/api/delete/:id": {
       async DELETE(req) {
         const { id } = req.params;

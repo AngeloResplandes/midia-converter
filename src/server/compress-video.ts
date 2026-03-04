@@ -8,12 +8,11 @@ ffmpeg.setFfmpegPath(ffmpegStatic as string);
 
 const SUPPORTED_VIDEO_FORMATS = [".mp4", ".mov", ".mkv", ".avi", ".webm"];
 
-const VIDEO_CRF = 30;           // 28 → 30: ~20-30% smaller, visually near-lossless
-const VIDEO_PRESET = "slower";  // "slow" → "slower": better compression at same quality
-const AUDIO_BITRATE = "96k";    // 128k → 96k: imperceptible for most content
-const VIDEO_MAXRATE = "1.5M";   // 2M → 1.5M: tighter upper bitrate ceiling
-const VIDEO_BUFSIZE = "3M";     // 4M → 3M
-// Scale down to max 1920x1080 keeping aspect ratio — biggest win for 4K/2K inputs
+const VIDEO_CRF = 30;
+const VIDEO_PRESET = "slower";
+const AUDIO_BITRATE = "96k";
+const VIDEO_MAXRATE = "1.5M";
+const VIDEO_BUFSIZE = "3M";
 const VIDEO_SCALE = "scale=1920:1080:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2";
 
 
@@ -21,10 +20,7 @@ export function isSupportedVideo(filename: string): boolean {
     return SUPPORTED_VIDEO_FORMATS.includes(extname(filename).toLowerCase());
 }
 
-/**
- * Compresses a video using OS temp files (not the project's uploads/ folder).
- * Temp files are deleted immediately after the output buffer is read.
- */
+
 export function compressVideo(
     inputBuffer: Buffer,
     originalName: string,
@@ -37,8 +33,7 @@ export function compressVideo(
     const outputName = basename(originalName, extname(originalName)) + "_compressed.mp4";
     const inputSize = inputBuffer.length;
 
-    // Write input to OS temp dir only
-    writeFileSync(inputTmp, inputBuffer);
+    writeFileSync(inputTmp, new Uint8Array(inputBuffer));
 
     return new Promise((resolve, reject) => {
         ffmpeg(inputTmp)
@@ -55,19 +50,17 @@ export function compressVideo(
                 "-pix_fmt yuv420p",
                 "-threads 0",
             ])
-            .on("progress", (progress) => {
+            .on("progress", (progress: { percent?: number }) => {
                 const pct = Math.min(Math.round(progress.percent ?? 0), 100);
                 onProgress?.(pct);
             })
             .on("end", () => {
-                // Clean up input temp immediately
                 try { unlinkSync(inputTmp); } catch { }
 
                 try {
                     const outputBuffer = readFileSync(outputTmp);
                     const outputSize = outputBuffer.length;
 
-                    // Clean up output temp immediately after reading into memory
                     try { unlinkSync(outputTmp); } catch { }
 
                     resolve({ outputBuffer, outputName, inputSize, outputSize });
@@ -75,7 +68,7 @@ export function compressVideo(
                     reject(err);
                 }
             })
-            .on("error", (err) => {
+            .on("error", (err: Error) => {
                 try { unlinkSync(inputTmp); } catch { }
                 try { unlinkSync(outputTmp); } catch { }
                 reject(err);

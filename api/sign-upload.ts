@@ -1,12 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { cloudinary } from "../src/server/cloudinary";
 
-/**
- * GET /api/sign-upload?publicId=...&resourceType=image|video
- *
- * Returns a signed upload signature so the browser can upload directly to
- * Cloudinary without an unsigned preset (no 100 MB file-size restriction).
- */
+
 export default function handler(req: VercelRequest, res: VercelResponse) {
     const publicId = req.query.publicId as string | undefined;
     const resourceType = (req.query.resourceType as string | undefined) ?? "auto";

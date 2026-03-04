@@ -1,17 +1,14 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { zipSync } from "fflate";
 
+
 interface ZipEntry {
     publicId: string;
     type: "image" | "video";
     filename: string;
 }
 
-/**
- * POST /api/download-zip
- * Body: { files: ZipEntry[] }
- * Returns a ZIP archive containing all converted files.
- */
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== "POST") {
         return res.status(405).json({ error: "Method not allowed" });
@@ -25,7 +22,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: "Nenhum arquivo informado" });
     }
 
-    // Fetch all files from Cloudinary in parallel
     const results = await Promise.allSettled(
         files.map(async ({ publicId, type, filename }) => {
             const url = type === "video"
@@ -39,12 +35,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         })
     );
 
-    // Build ZIP entries — skip failed files
+
     const zipEntries: Record<string, Uint8Array> = {};
     for (const result of results) {
         if (result.status === "fulfilled") {
             const { filename, buffer } = result.value;
-            // Deduplicate filenames
             let name = filename;
             let i = 1;
             while (name in zipEntries) {
@@ -62,7 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(500).json({ error: "Nenhum arquivo pôde ser baixado" });
     }
 
-    const zip = zipSync(zipEntries, { level: 0 }); // level 0 = store only (media files are already compressed)
+    const zip = zipSync(zipEntries, { level: 0 });
 
     res.setHeader("Content-Type", "application/zip");
     res.setHeader("Content-Disposition", `attachment; filename="convertidos.zip"`);
