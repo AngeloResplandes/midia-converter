@@ -3,13 +3,9 @@ import type { FileJob } from "@/types/job";
 
 export type { FileJob };
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const CHUNK_SIZE = 50 * 1024 * 1024;       // 50 MB per chunk
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024;  // 100 MB unsigned upload limit
 const CHUNK_TIMEOUT = 300_000;             // 5 min per chunk
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface CloudinaryConfig {
     cloudName: string;
@@ -25,8 +21,6 @@ interface CloudinaryUploadResult {
 }
 
 type ResourceType = "image" | "video";
-
-// ─── URL builders ─────────────────────────────────────────────────────────────
 
 function buildDownloadUrl(publicId: string, resourceType: ResourceType, outputName: string): string {
     const params = new URLSearchParams({ publicId, type: resourceType, filename: outputName });
@@ -44,13 +38,6 @@ function buildOutputName(originalName: string, type: ResourceType): string {
     return type === "image" ? `${base}.webp` : `${base}_compressed.mp4`;
 }
 
-// ─── Cloudinary upload (chunked) ──────────────────────────────────────────────
-
-/**
- * Sends a single chunk via XHR.
- * Files ≤ CHUNK_SIZE use a plain upload (no extra headers).
- * Larger files use Content-Range + X-Unique-Upload-Id for resumable chunking.
- */
 function sendChunk(
     chunk: Blob,
     start: number,
@@ -100,10 +87,6 @@ function sendChunk(
     });
 }
 
-/**
- * Uploads a file to Cloudinary using the unsigned preset.
- * Automatically splits files larger than CHUNK_SIZE into sequential chunks.
- */
 async function uploadToCloudinary(
     file: File,
     cloudName: string,
@@ -139,8 +122,6 @@ async function uploadToCloudinary(
     return lastResult;
 }
 
-// ─── API helpers ──────────────────────────────────────────────────────────────
-
 async function fetchConfig(): Promise<CloudinaryConfig> {
     const res = await fetch("/api/config");
     if (!res.ok) throw new Error("Não foi possível obter configuração do servidor");
@@ -170,32 +151,23 @@ function triggerBlobDownload(blob: Blob, filename: string): void {
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
-
 export function useConverter(fileType?: ResourceType) {
     const [files, setFiles] = useState<FileJob[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const configRef = useRef<CloudinaryConfig | null>(null);
-
-    // ── Config (cached) ──────────────────────────────────────────────────────
 
     const getConfig = useCallback(async (): Promise<CloudinaryConfig> => {
         if (!configRef.current) configRef.current = await fetchConfig();
         return configRef.current;
     }, []);
 
-    // ── File state helpers ──────────────────────────────────────────────────
-
     const updateFile = useCallback((id: string, patch: Partial<FileJob>) => {
         setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)));
     }, []);
 
-    // ── Upload ────────────────────────────────────────────────────────────────
-
     const uploadFiles = useCallback(async (fileList: FileList | File[]) => {
         setIsUploading(true);
 
-        // Partition into valid and oversized
         const oversized: { name: string; size: number }[] = [];
         const valid = Array.from(fileList).filter((file) => {
             const isImage = file.type.startsWith("image/");
@@ -209,7 +181,6 @@ export function useConverter(fileType?: ResourceType) {
             return true;
         });
 
-        // Show oversized files as errors immediately
         if (oversized.length > 0) {
             setFiles((prev) => [
                 ...prev,
@@ -230,7 +201,6 @@ export function useConverter(fileType?: ResourceType) {
             return;
         }
 
-        // Create pending entries and show them in the UI right away
         const entries = valid.map((file) => ({
             id: crypto.randomUUID(),
             file,
@@ -249,7 +219,6 @@ export function useConverter(fileType?: ResourceType) {
             })),
         ]);
 
-        // Fetch config (after entries are already visible)
         let config: CloudinaryConfig;
         try {
             config = await getConfig();
@@ -265,7 +234,6 @@ export function useConverter(fileType?: ResourceType) {
             return;
         }
 
-        // Upload all valid files in parallel
         await Promise.all(
             entries.map(async ({ id, file, type }) => {
                 try {
@@ -296,8 +264,6 @@ export function useConverter(fileType?: ResourceType) {
         setIsUploading(false);
     }, [fileType, getConfig, updateFile]);
 
-    // ── Delete / clear ────────────────────────────────────────────────────────
-
     const deleteFile = useCallback((id: string) => {
         setFiles((prev) => prev.filter((f) => f.id !== id));
         fetch(`/api/delete/${id}`, { method: "DELETE" }).catch(() => { });
@@ -308,8 +274,6 @@ export function useConverter(fileType?: ResourceType) {
         setFiles([]);
         snapshot.forEach(({ id }) => fetch(`/api/delete/${id}`, { method: "DELETE" }).catch(() => { }));
     }, [files]);
-
-    // ── Downloads ─────────────────────────────────────────────────────────────
 
     const triggerDownload = useCallback((url: string, filename: string) => {
         fetch(url)
@@ -344,8 +308,6 @@ export function useConverter(fileType?: ResourceType) {
             .then((blob) => triggerBlobDownload(blob, "convertidos.zip"))
             .catch((err) => console.error("[downloadAll] erro ao gerar ZIP:", err));
     }, [files, triggerDownload]);
-
-    // ── Derived counts ────────────────────────────────────────────────────────
 
     const convertingCount = files.filter((f) => f.status === "uploading" || f.status === "converting").length;
     const doneCount = files.filter((f) => f.status === "done").length;

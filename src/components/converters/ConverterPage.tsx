@@ -1,19 +1,153 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type RefObject } from "react";
 import { useConverter } from "@/hooks/useConverter";
 import { FileItem } from "@/components/ui/FileItem";
 import { Upload, Download, X, Loader2, ArrowLeft, Archive } from "lucide-react";
+import type React from "react";
 import type { ConverterPageProps } from "@/types/components";
 import {
     dropZone,
     statusColors,
     headerIcon,
     downloadBtn,
-    emptyState
+    emptyState,
 } from "@/services/converterPage";
 
+function DropZone({
+    isDragging,
+    color,
+    icon: Icon,
+    dragMessage,
+    formatHint,
+    accept,
+    type,
+    fileInputRef,
+    onDrop,
+    onDragOver,
+    onDragLeave,
+    onFileChange,
+}: {
+    isDragging: boolean;
+    color: "purple" | "indigo";
+    icon: React.ComponentType<{ className?: string }>;
+    dragMessage: string;
+    formatHint: string;
+    accept: string;
+    type: "image" | "video";
+    fileInputRef: RefObject<HTMLInputElement | null>;
+    onDrop: (e: React.DragEvent) => void;
+    onDragOver: (e: React.DragEvent) => void;
+    onDragLeave: (e: React.DragEvent) => void;
+    onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+    const dz = dropZone[color];
+    return (
+        <div
+            onDrop={onDrop}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onClick={() => fileInputRef.current?.click()}
+            className={`
+                lg:w-[42%] min-h-37.5 lg:min-h-0 shrink-0 rounded-2xl border-2 border-dashed
+                transition-all duration-300 cursor-pointer
+                flex flex-col items-center justify-center gap-4 px-6 py-6 lg:py-0
+                ${isDragging ? dz.dragging : dz.idle}
+            `}
+        >
+            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-colors ${isDragging ? dz.iconDragging : dz.iconIdle}`}>
+                <Upload className={`w-8 h-8 ${isDragging ? dz.uploadDragging : dz.uploadIdle}`} />
+            </div>
+            <div className="text-center">
+                <p className="text-gray-300 font-medium">
+                    {isDragging ? "Solte os arquivos aqui" : dragMessage}
+                </p>
+                <p className="hidden sm:block text-gray-500 text-sm mt-1">{formatHint}</p>
+                {type === "video" && (
+                    <p className="text-yellow-500/70 text-xs mt-2 font-medium">
+                        Tamanho máximo: 100 MB por arquivo
+                    </p>
+                )}
+            </div>
+            <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={accept}
+                onChange={onFileChange}
+                className="hidden"
+            />
+        </div>
+    );
+}
+
+function StatusBar({
+    color,
+    convertingCount,
+    doneCount,
+    totalCount,
+    convertingLabel,
+    doneLabel,
+}: {
+    color: "purple" | "indigo";
+    convertingCount: number;
+    doneCount: number;
+    totalCount: number;
+    convertingLabel: (n: number) => string;
+    doneLabel: (n: number) => string;
+}) {
+    const sc = statusColors[color];
+    return (
+        <div className="flex items-center justify-between px-1 shrink-0">
+            <div className="flex items-center gap-2">
+                {convertingCount > 0 && (
+                    <div className={`flex items-center gap-2 text-sm ${sc.text}`}>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>{convertingLabel(convertingCount)}</span>
+                        <span className="inline-flex gap-0.5">
+                            <span className={`w-1 h-1 rounded-full ${sc.dot} animate-bounce`} style={{ animationDelay: "0ms" }} />
+                            <span className={`w-1 h-1 rounded-full ${sc.dot} animate-bounce`} style={{ animationDelay: "150ms" }} />
+                            <span className={`w-1 h-1 rounded-full ${sc.dot} animate-bounce`} style={{ animationDelay: "300ms" }} />
+                        </span>
+                    </div>
+                )}
+                {convertingCount === 0 && doneCount > 0 && (
+                    <span className="text-sm text-green-400">{doneLabel(doneCount)}</span>
+                )}
+            </div>
+            <span className="text-xs text-gray-500">
+                {totalCount} {totalCount === 1 ? "arquivo" : "arquivos"}
+            </span>
+        </div>
+    );
+}
+
+function EmptyFileList({
+    color,
+    icon: Icon,
+    emptyMessage,
+}: {
+    color: "purple" | "indigo";
+    icon: React.ComponentType<{ className?: string }>;
+    emptyMessage: string;
+}) {
+    const es = emptyState[color];
+    return (
+        <div className="flex-1 flex items-center justify-center rounded-2xl border border-dashed border-gray-700/40 bg-[#12122a]/20">
+            <div className="text-center">
+                <div className={`w-20 h-20 rounded-3xl ${es.bg} flex items-center justify-center mx-auto mb-4`}>
+                    <Icon className={`w-10 h-10 ${es.icon}`} />
+                </div>
+                <p className="text-gray-500 text-sm">{emptyMessage}</p>
+                <p className="text-gray-600 text-xs mt-1">Selecione ou arraste arquivos</p>
+            </div>
+        </div>
+    );
+}
+
 export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
-    const { type, title, subtitle, icon: Icon, color, accept, formatHint,
-        dragMessage, emptyMessage, convertingLabel, doneLabel, downloadLabel } = config;
+    const {
+        type, title, subtitle, icon: Icon, color, accept, formatHint,
+        dragMessage, emptyMessage, convertingLabel, doneLabel, downloadLabel,
+    } = config;
 
     const {
         files, uploadFiles, deleteFile, clearAll,
@@ -45,10 +179,6 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
             e.target.value = "";
         }
     }, [uploadFiles]);
-
-    const dz = dropZone[color];
-    const sc = statusColors[color];
-    const es = emptyState[color];
 
     return (
         <div className="min-h-screen lg:h-screen bg-[#0a0a1a] flex flex-col lg:overflow-hidden pt-16 lg:pt-20">
@@ -84,66 +214,32 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
                 </div>
 
                 <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 flex-1 lg:min-h-0">
-                    <div
+                    <DropZone
+                        isDragging={isDragging}
+                        color={color}
+                        icon={Icon}
+                        dragMessage={dragMessage}
+                        formatHint={formatHint}
+                        accept={accept}
+                        type={type}
+                        fileInputRef={fileInputRef}
                         onDrop={handleDrop}
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
-                        onClick={() => fileInputRef.current?.click()}
-                        className={`
-              lg:w-[42%] min-h-37.5 lg:min-h-0 shrink-0 rounded-2xl border-2 border-dashed transition-all duration-300 cursor-pointer
-              flex flex-col items-center justify-center gap-4 px-6 py-6 lg:py-0
-              ${isDragging ? dz.dragging : dz.idle}
-            `}
-                    >
-                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-colors ${isDragging ? dz.iconDragging : dz.iconIdle}`}>
-                            <Upload className={`w-8 h-8 ${isDragging ? dz.uploadDragging : dz.uploadIdle}`} />
-                        </div>
-                        <div className="text-center">
-                            <p className="text-gray-300 font-medium">
-                                {isDragging ? "Solte os arquivos aqui" : dragMessage}
-                            </p>
-                            <p className="hidden sm:block text-gray-500 text-sm mt-1">{formatHint}</p>
-                            {type === "video" && (
-                                <p className="text-yellow-500/70 text-xs mt-2 font-medium">
-                                    Tamanho máximo: 100 MB por arquivo
-                                </p>
-                            )}
-                        </div>
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            multiple
-                            accept={accept}
-                            onChange={handleFileInput}
-                            className="hidden"
-                        />
-                    </div>
+                        onFileChange={handleFileInput}
+                    />
 
                     <div className="flex-1 flex flex-col min-h-75 lg:min-h-0">
                         {files.length > 0 ? (
                             <div className="flex flex-col h-full min-h-0 gap-3">
-
-                                <div className="flex items-center justify-between px-1 shrink-0">
-                                    <div className="flex items-center gap-2">
-                                        {convertingCount > 0 && (
-                                            <div className={`flex items-center gap-2 text-sm ${sc.text}`}>
-                                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                                <span>{convertingLabel(convertingCount)}</span>
-                                                <span className="inline-flex gap-0.5">
-                                                    <span className={`w-1 h-1 rounded-full ${sc.dot} animate-bounce`} style={{ animationDelay: "0ms" }} />
-                                                    <span className={`w-1 h-1 rounded-full ${sc.dot} animate-bounce`} style={{ animationDelay: "150ms" }} />
-                                                    <span className={`w-1 h-1 rounded-full ${sc.dot} animate-bounce`} style={{ animationDelay: "300ms" }} />
-                                                </span>
-                                            </div>
-                                        )}
-                                        {convertingCount === 0 && doneCount > 0 && (
-                                            <span className="text-sm text-green-400">{doneLabel(doneCount)}</span>
-                                        )}
-                                    </div>
-                                    <span className="text-xs text-gray-500">
-                                        {files.length} {files.length === 1 ? "arquivo" : "arquivos"}
-                                    </span>
-                                </div>
+                                <StatusBar
+                                    color={color}
+                                    convertingCount={convertingCount}
+                                    doneCount={doneCount}
+                                    totalCount={files.length}
+                                    convertingLabel={convertingLabel}
+                                    doneLabel={doneLabel}
+                                />
 
                                 <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar min-h-0">
                                     {files.map((file) => (
@@ -163,20 +259,17 @@ export function ConverterPage({ config, onNavigate }: ConverterPageProps) {
                                     >
                                         {doneCount > 1
                                             ? <><Archive className="w-5 h-5" /> BAIXAR .ZIP {downloadLabel(doneCount)}</>
-                                            : <><Download className="w-5 h-5" /> DOWNLOAD {downloadLabel(doneCount)}</>}
+                                            : <><Download className="w-5 h-5" /> DOWNLOAD {downloadLabel(doneCount)}</>
+                                        }
                                     </button>
                                 )}
                             </div>
                         ) : (
-                            <div className="flex-1 flex items-center justify-center rounded-2xl border border-dashed border-gray-700/40 bg-[#12122a]/20">
-                                <div className="text-center">
-                                    <div className={`w-20 h-20 rounded-3xl ${es.bg} flex items-center justify-center mx-auto mb-4`}>
-                                        <Icon className={`w-10 h-10 ${es.icon}`} />
-                                    </div>
-                                    <p className="text-gray-500 text-sm">{emptyMessage}</p>
-                                    <p className="text-gray-600 text-xs mt-1">Selecione ou arraste arquivos</p>
-                                </div>
-                            </div>
+                            <EmptyFileList
+                                color={color}
+                                icon={Icon}
+                                emptyMessage={emptyMessage}
+                            />
                         )}
                     </div>
                 </div>
